@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PJT PORTAL ON LOCALHOST</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-file-contract"></i> MARS PJT 
+            </h1>
+    
+        </header>
+        
+        <div class="upload-container">
+            <div id="drop-zone">
+                
+                <input type="file" id="file-input" accept=".pdf,.docx,.txt,.jpg,.png,.pptx">
+                <label for="file-input" class="btn-primary">
+                    <i class="fas fa-folder-open"></i> Choose File
+                </label>
+                <p class="formats"></p>
+            </div>
+            <div id="file-info" class="hidden">
+                <h3><i class="fas fa-file"></i> <span id="filename"></span></h3>
+                <div class="progress-container">
+                    <div class="progress-bar" id="progress-bar"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="results" class="hidden">
+            <div class="results-header">
+                <h2><i class="fas fa-chart-bar"></i> Analysis Results</h2>
+                <button id="download-btn" class="btn-primary">
+                    <i class="fas fa-download"></i> Download Report
+                </button>
+            </div>
+            <div id="metadata-output"></div>
+        </div>
+        
+        <div id="error" class="hidden">
+            <div class="error-header">
+                <i class="fas fa-exclamation-triangle"></i>
+                <h3>Processing Error</h3>
+            </div>
+            <p id="error-message"></p>
+            <button id="retry-btn" class="btn-secondary">
+                <i class="fas fa-redo"></i> Try Again
+            </button>
+        </div>
+    </div>
+    
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const fileInfo = document.getElementById('file-info');
+        const fileName = document.getElementById('filename');
+        const progressBar = document.getElementById('progress-bar');
+        const resultsDiv = document.getElementById('results');
+        const outputDiv = document.getElementById('metadata-output');
+        const errorDiv = document.getElementById('error');
+        const errorMsg = document.getElementById('error-message');
+        const downloadBtn = document.getElementById('download-btn');
+        const retryBtn = document.getElementById('retry-btn');
+
+        // Drag and drop handling
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, highlight, false);
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, unhighlight, false);
+        });
+        
+        function highlight() {
+            dropZone.classList.add('highlight');
+        }
+        
+        function unhighlight() {
+            dropZone.classList.remove('highlight');
+        }
+        
+        dropZone.addEventListener('drop', handleDrop, false);
+        
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFiles(files);
+        }
+        
+        fileInput.addEventListener('change', function() {
+            handleFiles(this.files);
+        });
+        
+        function handleFiles(files) {
+            if (files.length === 0) return;
+            
+            const file = files[0];
+            fileName.textContent = file.name;
+            fileInfo.classList.remove('hidden');
+            dropZone.classList.add('hidden');
+            
+            // Simulate progress
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += 5;
+                progressBar.style.width = `${progress}%`;
+                if (progress >= 100) {
+                    clearInterval(progressInterval);
+                    processFile(file);
+                }
+            }, 100);
+        }
+        
+        function processFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            resultsDiv.classList.add('hidden');
+            errorDiv.classList.add('hidden');
+            
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw new Error(err.error || 'Server error') });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                displayResults(data);
+            })
+            .catch(error => {
+                showError(error.message);
+            });
+        }
+        
+        function displayResults(data) {
+            // Format results as HTML
+            let html = `
+                <div class="result-section">
+                    <h3><i class="fas fa-info-circle"></i> Document Information</h3>
+                    <table>
+                        <tr><th>Document ID</th><td>${data.document_id}</td></tr>
+                        <tr><th>Filename</th><td>${data.file_metadata.original_name}</td></tr>
+                        <tr><th>File Type</th><td>${data.file_metadata.file_type}</td></tr>
+                        <tr><th>File Size</th><td>${data.file_metadata.file_size}</td></tr>
+                        <tr><th>Content Type</th><td>${data.file_metadata.content_type}</td></tr>
+                    </table>
+                </div>
+                
+                <div class="result-section">
+                    <h3><i class="fas fa-chart-pie"></i> Content Analysis</h3>
+                    <div class="result-grid">
+                        <div class="result-card">
+                            <h4><i class="fas fa-file-alt"></i> Summary</h4>
+                            <p>${data.content_metadata.summary}</p>
+                        </div>
+                        
+                        <div class="result-card">
+                            <h4><i class="fas fa-key"></i> Keywords</h4>
+                            <div class="keywords">`;
+            
+            data.content_metadata.keywords.forEach(keyword => {
+                html += `<span class="keyword-tag">${keyword}</span>`;
+            });
+            
+            html += `</div></div>
+                        
+                        <div class="result-card">
+                            <h4><i class="fas fa-chart-line"></i> Readability</h4>
+                            <p>Score: ${data.content_metadata.readability.toFixed(2)}</p>
+                            <p>Grade Level: ${data.content_metadata.readability > 60 ? 'Easy' : 'Difficult'}</p>
+                        </div>
+                        
+                        <div class="result-card">
+                            <h4><i class="fas fa-smile"></i> Sentiment</h4>
+                            <p>Polarity: ${data.content_metadata.sentiment.polarity.toFixed(3)}</p>
+                            <p>Subjectivity: ${data.content_metadata.sentiment.subjectivity.toFixed(3)}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="result-section">
+                    <h3><i class="fas fa-eye"></i> Visualizations</h3>
+                    <div class="visualizations">
+                        <div class="viz">
+                            <h4>Word Cloud</h4>
+                            <img src="data:image/png;base64,${data.visualizations.wordcloud}" alt="Word Cloud">
+                        </div>
+                        <div class="viz">
+                            <h4>Keyword Relevance</h4>
+                            <img src="data:image/png;base64,${data.visualizations.keyword_plot}" alt="Keyword Relevance">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="result-section">
+                    <h3><i class="fas fa-tachometer-alt"></i> Processing Metrics</h3>
+                    <p>Extraction Time: ${data.processing_metrics.extraction_time}</p>
+                    <p>Content Size: ${data.processing_metrics.content_size}</p>
+                </div>`;
+            
+            // Add page-wise analysis section if available
+            if (data.page_wise_analysis && data.page_wise_analysis.length > 0) {
+                html += `<div class="result-section">
+                    <h3><i class="fas fa-copy"></i> Page-wise Analysis</h3>
+                    <div class="page-analysis">`;
+                
+                data.page_wise_analysis.forEach(page => {
+                    html += `<div class="page-card">
+                        <h4>Page ${page.page_number}</h4>
+                        <p><strong>Summary:</strong> ${page.summary}</p>
+                        <p><strong>Keywords:</strong> ${page.keywords.join(', ')}</p>`;
+                    
+                    if (Object.keys(page.entities).length > 0) {
+                        html += `<p><strong>Entities:</strong></p><ul>`;
+                        for (const [entity_type, entities] of Object.entries(page.entities)) {
+                            html += `<li><strong>${entity_type}:</strong> ${entities.join(', ')}</li>`;
+                        }
+                        html += `</ul>`;
+                    }
+                    
+                    html += `<p><small>${page.word_count} words, ${page.char_count} characters</small></p>
+                    </div>`;
+                });
+                
+                html += `</div></div>`;
+            }
+            
+            outputDiv.innerHTML = html;
+            resultsDiv.classList.remove('hidden');
+            fileInfo.classList.add('hidden');
+            dropZone.classList.remove('hidden');
+        }
+        
+        function showError(message) {
+            errorMsg.textContent = message;
+            errorDiv.classList.remove('hidden');
+            fileInfo.classList.add('hidden');
+            dropZone.classList.remove('hidden');
+        }
+        
+        downloadBtn.addEventListener('click', () => {
+            const dataStr = "data:text/json;charset=utf-8," + 
+                encodeURIComponent(JSON.stringify(data, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", "metadata_report.json");
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        });
+        
+        retryBtn.addEventListener('click', () => {
+            errorDiv.classList.add('hidden');
+        });
+    </script>
+</body>
+</html>
