@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PJT MARS </title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Document Metadata Analysis</h1>
+        
+        <div class="section">
+            <h2>Document Information</h2>
+            <table>
+                <tr>
+                    <th>Document ID</th>
+                    <td>{{ metadata.document_id }}</td>
+                </tr>
+                <tr>
+                    <th>Filename</th>
+                    <td>{{ metadata.file_metadata.original_name }}</td>
+                </tr>
+                <tr>
+                    <th>File Type</th>
+                    <td>{{ metadata.file_metadata.file_type }}</td>
+                </tr>
+                <tr>
+                    <th>File Size</th>
+                    <td>{{ metadata.file_metadata.file_size }}</td>
+                </tr>
+                <tr>
+                    <th>Content Type</th>
+                    <td>{{ metadata.file_metadata.content_type }}</td>
+                </tr>
+                <tr>
+                    <th>Processed At</th>
+                    <td>{{ metadata.system_metadata.processing_timestamp }}</td>
+                </tr>
+            </table>
+        </div>
+        
+        <div class="section">
+            <h2>Content Analysis</h2>
+            
+            <div class="subsection">
+                <h3>Summary</h3>
+                <div class="summary-box">
+                    {{ metadata.content_metadata.summary }}
+                </div>
+            </div>
+            
+            <div class="subsection">
+                <h3>Text Statistics</h3>
+                <table>
+                    <tr>
+                        <th>Readability Score</th>
+                        <td>{{ metadata.content_metadata.readability | round(2) }}</td>
+                    </tr>
+                    <tr>
+                        <th>Sentiment Polarity</th>
+                        <td>{{ metadata.content_metadata.sentiment.polarity | round(3) }}</td>
+                    </tr>
+                    <tr>
+                        <th>Sentiment Subjectivity</th>
+                        <td>{{ metadata.content_metadata.sentiment.subjectivity | round(3) }}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="subsection">
+                <h3>Keyword Analysis</h3>
+                <div class="keywords">
+                    {% for keyword in metadata.content_metadata.keywords %}
+                    <span class="keyword-tag">{{ keyword }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div class="subsection">
+                <h3>Named Entities</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Entity Type</th>
+                            <th>Values</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entity_type, values in metadata.content_metadata.entities.items() %}
+                        <tr>
+                            <td>{{ entity_type }}</td>
+                            <td>{{ values|join(', ') }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="visualizations">
+                <div class="viz">
+                    <h3>Keyword Relevance</h3>
+                    <img src="data:image/png;base64,{{ metadata.visualizations.keyword_plot }}" 
+                         alt="Keyword Relevance">
+                </div>
+                
+                <div class="viz">
+                    <h3>Word Cloud</h3>
+                    <img src="data:image/png;base64,{{ metadata.visualizations.wordcloud }}" 
+                         alt="Word Cloud">
+                </div>
+            </div>
+        </div>
+        
+        <div class="processing-metrics">
+            <h3>Processing Metrics</h3>
+            <p>{{ metadata.processing_metrics.extraction_time }} ({{ metadata.processing_metrics.content_size }})</p>
+        </div>
+        
+        <div class="actions">
+            <a href="/" class="btn">Analyze Another Document</a>
+            <button onclick="downloadMetadata()" class="btn">Download Full Report</button>
+        </div>
+    </div>
+
+    <script>
+        function downloadMetadata() {
+            const metadata = JSON.parse('{{ metadata|tojson | safe }}');
+            const dataStr = "data:text/json;charset=utf-8," + 
+                encodeURIComponent(JSON.stringify(metadata, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", "metadata_report.json");
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+    </script>
+</body>
+</html>
